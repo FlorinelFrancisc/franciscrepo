@@ -206,19 +206,7 @@ def main():
     forecast_data = predictor_agent.get_forecast_and_advice()
     logger_agent.log_to_csv(alerts, "\n".join([f"{k}: {v['trend']}" for k, v in forecast_data.items()]))
 
-    if is_summary_time():  # default is 18:00, change to 16 if needed
-        alert_agent.send_summary(current_prices, forecast_data)
-    else:
-        print("🕐 Not time for summary email yet.")
-
-def is_summary_time(target_hour=16):
-    now = datetime.now()
-    return now.hour == target_hour
-
+    alert_agent.send_summary(current_prices, forecast_data)
 
 if __name__ == "__main__":
-    print("⏳ Running every 60 minutes... Press Ctrl+C to stop.")
-    while True:
-        main()
-        time.sleep(3600)  # 60 minutes
-
+    main()
