@@ -8,7 +8,7 @@ from pathlib import Path
 from datetime import datetime
 
 # === CONFIG ===
-YOUR_EMAIL = "francisc_florinel@yahoo.com"
+YOUR_EMAIL = "francisc_florinel@"
 APP_PASSWORD = "mppusawbifwqdwyy"  # Replace this with your real Yahoo app password
 TO_EMAIL = "francisc_florinel@yahoo.com"
 COINS = {"vechain": "VET", "terra-luna-classic": "LUNC"}
