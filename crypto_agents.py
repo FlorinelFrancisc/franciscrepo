@@ -112,20 +112,25 @@ class AnalyzerAgent:
             json.dump(self.previous, f)
 
 class AlertAgent:
-    def send_alert(self, alerts, forecast_text):
-        if not alerts:
-            print("✅ No alerts to send.")
-            return
+    def send_summary(self, prices, trends_with_advice):
+        subject = "Crypto Daily Summary: VET / LUNC"
+        body = "DAILY SUMMARY – {}\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"))
 
-        subject = "📉 Crypto Price Alert: VET / LUNC"
-        body = ""
-        for symbol, data in alerts.items():
+        for coin_id, symbol in COINS.items():
+            price = "N/A"
+            if coin_id in prices and "usd" in prices[coin_id]:
+                price = f"${prices[coin_id]['usd']:.6f}"
+
+            trend_info = trends_with_advice.get(symbol, {})
+            trend = trend_info.get("trend", "Unknown")
+            advice = trend_info.get("advice", "No advice available.")
+
             body += (
-                f"{symbol} moved {data['change']}%\n"
-                f"Now: ${data['current']:.6f} | Was: ${data['previous']:.6f}\n\n"
+                f"{symbol}:\n"
+                f"Price: {price}\n"
+                f"Trend: {trend}\n"
+                f"Advice: {advice}\n\n"
             )
-
-        body += "\n📊 Forecast:\n" + forecast_text
 
         msg = EmailMessage()
         msg["Subject"] = subject
@@ -137,9 +142,9 @@ class AlertAgent:
             with smtplib.SMTP_SSL("smtp.mail.yahoo.com", 465) as smtp:
                 smtp.login(YOUR_EMAIL, APP_PASSWORD)
                 smtp.send_message(msg)
-            print("📧 Email alert sent!")
+            print("📧 Daily summary email sent!")
         except Exception as e:
-            print(f"❌ Failed to send email: {e}")
+            print(f"❌ Failed to send summary email: {e}")
 
 class PredictorAgent:
     def __init__(self):
@@ -160,23 +165,31 @@ class PredictorAgent:
         with open(TREND_FILE, "w") as f:
             json.dump(self.trend_data, f)
 
-    def predict(self):
-        forecast = ""
+    def get_forecast_and_advice(self):
+        results = {}
         for coin_id, history in self.trend_data.items():
             symbol = COINS[coin_id]
+            trend = "Unknown"
+            advice = "No advice available."
+
             if len(history) < 3:
-                forecast += f"{symbol}: Not enough data for trend prediction.\n"
-                continue
-
-            if history[-1] < history[-2] < history[-3]:
-                trend = "🔻 Bearish trend (3-day drop)"
+                trend = "Not enough data"
+                advice = "Wait for more data before taking action."
+            elif history[-1] < history[-2] < history[-3]:
+                trend = "Bearish"
+                advice = "Be cautious. If you're in profit, it may be time to sell."
             elif history[-1] > history[-2] > history[-3]:
-                trend = "🚀 Bullish trend (3-day rise)"
+                trend = "Bullish"
+                advice = "Consider holding. Uptrend may continue."
             else:
-                trend = "⚖️ Neutral / Mixed trend"
+                trend = "Neutral"
+                advice = "Market is moving sideways. Holding is a safe option."
 
-            forecast += f"{symbol}: {trend}\n"
-        return forecast
+            results[symbol] = {
+                "trend": trend,
+                "advice": advice
+            }
+        return results
 
 # === RUN AGENTS ===
 
@@ -190,14 +203,13 @@ def main():
     current_prices = data_agent.fetch_prices()
     alerts = analyzer_agent.analyze(current_prices)
     predictor_agent.update_trends(current_prices)
-    forecast = predictor_agent.predict()
-    logger_agent.log_to_csv(alerts, forecast)
+    forecast_data = predictor_agent.get_forecast_and_advice()
+    logger_agent.log_to_csv(alerts, "\n".join([f"{k}: {v['trend']}" for k, v in forecast_data.items()]))
 
-    if is_summary_time():
-        alert_agent.send_alert(alerts, forecast)
+    if is_summary_time():  # default is 18:00, change to 16 if needed
+        alert_agent.send_summary(current_prices, forecast_data)
     else:
         print("🕐 Not time for summary email yet.")
-
 
 def is_summary_time(target_hour=16):
     now = datetime.now()
