@@ -1,5 +1,7 @@
 # franciscrepo
 
+mppusawbifwqdwyy
+
 # Crypto Price Monitor Bot
 
 This is a Python-based crypto monitoring bot that tracks the prices of selected cryptocurrencies (Vechain and LUNC) using the CoinGecko API. It checks the prices every hour, logs the data to a CSV file, and sends a daily summary email with price changes and simple trend forecasts.

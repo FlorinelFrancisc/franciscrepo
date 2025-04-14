@@ -1,15 +1,15 @@
-import time
 import requests
 import smtplib
 import json
 import csv
-from datetime import datetime
+import time
 from email.message import EmailMessage
 from pathlib import Path
+from datetime import datetime
 
 # === CONFIG ===
 YOUR_EMAIL = "francisc_florinel@yahoo.com"
-APP_PASSWORD = "mppusawbifwqdwyy"  # Replace with your real app password
+APP_PASSWORD = "mppusawbifwqdwyy"  # Replace this with your real Yahoo app password
 TO_EMAIL = "francisc_florinel@yahoo.com"
 COINS = {"vechain": "VET", "terra-luna-classic": "LUNC"}
 ALERT_THRESHOLD = 3.0
@@ -17,38 +17,6 @@ PRICE_FILE = "coin_prices.json"
 TREND_FILE = "trend_history.json"
 
 # === AGENTS ===
-class LoggerAgent:
-    def log_to_csv(self, alerts, forecast):
-        log_file = "price_log.csv"
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # Prepare a log row for each coin
-        rows = []
-        for symbol in COINS.values():
-            alert = alerts.get(symbol)
-            if alert:
-                price = f"{alert['current']:.6f}"
-                change = f"{alert['change']}%"
-                trend = self.extract_trend_for(symbol, forecast)
-            else:
-                price = "N/A"
-                change = "-"
-                trend = "Missing"
-            rows.append([now, symbol, price, change, trend])
-
-        # Write to file
-        file_exists = Path(log_file).exists()
-        with open(log_file, "a", newline="") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["Timestamp", "Coin", "Price", "Change", "Trend"])
-            writer.writerows(rows)
-
-    def extract_trend_for(self, symbol, forecast_text):
-        for line in forecast_text.splitlines():
-            if line.startswith(symbol):
-                return line.split(": ")[1]
-        return "Unknown"
 
 class DataAgent:
     def fetch_prices(self, retries=3):
@@ -66,14 +34,13 @@ class DataAgent:
                     return data
 
                 print(f"⚠️ Missing: {', '.join(missing)} — retrying ({attempt + 1}/{retries})...")
-                time.sleep(2)  # wait a bit before retry
+                time.sleep(2)
             except Exception as e:
                 print(f"❌ Error fetching prices: {e}")
                 time.sleep(2)
 
         print("⚠️ Warning: Could not fetch complete price data after retries.")
         return data if 'data' in locals() else {}
-
 
 class AnalyzerAgent:
     def __init__(self):
@@ -110,41 +77,6 @@ class AnalyzerAgent:
     def _save_current_prices(self):
         with open(PRICE_FILE, "w") as f:
             json.dump(self.previous, f)
-
-class AlertAgent:
-    def send_summary(self, prices, trends_with_advice):
-        subject = "Crypto Daily Summary: VET / LUNC"
-        body = "DAILY SUMMARY – {}\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"))
-
-        for coin_id, symbol in COINS.items():
-            price = "N/A"
-            if coin_id in prices and "usd" in prices[coin_id]:
-                price = f"${prices[coin_id]['usd']:.6f}"
-
-            trend_info = trends_with_advice.get(symbol, {})
-            trend = trend_info.get("trend", "Unknown")
-            advice = trend_info.get("advice", "No advice available.")
-
-            body += (
-                f"{symbol}:\n"
-                f"Price: {price}\n"
-                f"Trend: {trend}\n"
-                f"Advice: {advice}\n\n"
-            )
-
-        msg = EmailMessage()
-        msg["Subject"] = subject
-        msg["From"] = YOUR_EMAIL
-        msg["To"] = TO_EMAIL
-        msg.set_content(body)
-
-        try:
-            with smtplib.SMTP_SSL("smtp.mail.yahoo.com", 465) as smtp:
-                smtp.login(YOUR_EMAIL, APP_PASSWORD)
-                smtp.send_message(msg)
-            print("📧 Daily summary email sent!")
-        except Exception as e:
-            print(f"❌ Failed to send summary email: {e}")
 
 class PredictorAgent:
     def __init__(self):
@@ -191,7 +123,79 @@ class PredictorAgent:
             }
         return results
 
-# === RUN AGENTS ===
+class LoggerAgent:
+    def log_to_csv(self, alerts, forecast_text):
+        log_file = "price_log.csv"
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        rows = []
+        for symbol in COINS.values():
+            alert = alerts.get(symbol)
+            if alert:
+                price = f"{alert['current']:.6f}"
+                change = f"{alert['change']}%"
+                trend = self.extract_trend_for(symbol, forecast_text)
+            else:
+                price = "N/A"
+                change = "-"
+                trend = "Missing"
+            rows.append([now, symbol, price, change, trend])
+
+        file_exists = Path(log_file).exists()
+        with open(log_file, "a", newline="") as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(["Timestamp", "Coin", "Price", "Change", "Trend"])
+            writer.writerows(rows)
+
+    def extract_trend_for(self, symbol, forecast_text):
+        for line in forecast_text.splitlines():
+            if line.startswith(symbol):
+                return line.split(": ")[1]
+        return "Unknown"
+
+class AlertAgent:
+    def send_summary(self, prices, trends_with_advice):
+        subject = "Crypto Daily Summary: VET / LUNC"
+        body = "DAILY SUMMARY – {}\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"))
+
+        for coin_id, symbol in COINS.items():
+            price = "N/A"
+            if coin_id in prices and "usd" in prices[coin_id]:
+                price = f"${prices[coin_id]['usd']:.6f}"
+
+            trend_info = trends_with_advice.get(symbol, {})
+            trend = trend_info.get("trend", "Unknown")
+            advice = trend_info.get("advice", "No advice available.")
+
+            body += (
+                f"{symbol}:\n"
+                f"Price: {price}\n"
+                f"Trend: {trend}\n"
+                f"Advice: {advice}\n\n"
+            )
+
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = YOUR_EMAIL
+        msg["To"] = TO_EMAIL
+        msg.set_content(body)
+
+        try:
+            with smtplib.SMTP_SSL("smtp.mail.yahoo.com", 465) as smtp:
+                smtp.login(YOUR_EMAIL, APP_PASSWORD)
+                smtp.send_message(msg)
+            print("📧 Daily summary email sent!")
+        except Exception as e:
+            print(f"❌ Failed to send summary email: {e}")
+
+# === TIME CHECK ===
+
+def is_summary_time(target_hour=16):
+    now = datetime.now()
+    return now.hour == target_hour
+
+# === MAIN FUNCTION ===
 
 def main():
     data_agent = DataAgent()
@@ -206,7 +210,15 @@ def main():
     forecast_data = predictor_agent.get_forecast_and_advice()
     logger_agent.log_to_csv(alerts, "\n".join([f"{k}: {v['trend']}" for k, v in forecast_data.items()]))
 
-    alert_agent.send_summary(current_prices, forecast_data)
+    if is_summary_time():
+        alert_agent.send_summary(current_prices, forecast_data)
+    else:
+        print("🕐 Not time for summary email yet.")
+
+# === RUN EVERY 60 MINUTES ===
 
 if __name__ == "__main__":
-    main()
+    print("⏳ Running every 60 minutes... Press Ctrl+C to stop.")
+    while True:
+        main()
+        time.sleep(3600)
